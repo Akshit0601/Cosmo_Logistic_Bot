@@ -1,5 +1,16 @@
 #!/usr/bin/env python3
 
+'''
+# Team ID:          < 2736 >
+# Theme:            < Cosmo Logistic >
+# Author List:      < Akshit Shishodia >
+# Filename:         < ebot_docking_service_task2b.py >
+# Functions:        load_yaml, odometery_callback, switch_electromagnet, dock_request, navigate
+# Variables:        pose, docker, goalPose1, goalPose2
+
+'''
+
+
 from typing import List
 from geometry_msgs.msg import PoseStamped
 from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
@@ -17,6 +28,14 @@ from usb_relay.srv import RelaySw
 from time import sleep
 from nav_msgs.msg import Odometry
 
+
+'''
+    Function Name: load_yaml
+    Input : path: string
+    Output : filehandle
+    Logic : returns filehandle after loading yaml file from the given path 
+
+'''
 def load_yaml(path):
     with open(path,"r+") as file:
         file_handle = yaml.safe_load(file)
@@ -32,6 +51,14 @@ class Docker(Node):
         self.initial_pose.header.stamp = self.navigator.get_clock().now().to_msg()
         self.odom_sub = self.create_subscription(Odometry, 'odom', self.odometry_callback,10)
         self.odom_init = True
+    
+    '''
+    Function Name: odometry_callback
+    Input : docker(object), msg: Odometry
+    Output : none
+    Logic : called only once initially, to set the initial pose 
+
+    '''
         
 
     def odometry_callback(self,msg:Odometry):
@@ -41,6 +68,8 @@ class Docker(Node):
             self.navigator.setInitialPose(self.initial_pose)
             self.navigator.waitUntilNav2Active()
             self.odom_init = False
+
+
 
     # def send_attach_request(self, rack_id):
     #     self.attacher = self.create_client(AttachLink,"/ATTACH_LINK")
@@ -68,7 +97,15 @@ class Docker(Node):
     #     req.link2_name  = 'link'  
     #     self.future2 = self.detacher.call_async(req)
     #     rclpy.spin_until_future_complete(self,self.future2)
-    
+    '''
+    Function Name: switch_electromagnet
+    Input : docker object, relaystate: Boolean
+    Output : none
+    Logic : sends a service call to switch to state of electromagnet (on/off)
+    Example call : docker.switch_electromagnet(True)
+    '''   
+
+
     def switch_eletromagent(self,relayState):
         self.get_logger().info('Changing state of the relay to '+str(relayState))
         self.trigger_usb_relay = self.create_client(RelaySw, 'usb_relay_sw')
@@ -85,7 +122,14 @@ class Docker(Node):
             self.get_logger().info(self.usb_relay_service_resp.result().message)
         else:
             self.get_logger().warn(self.usb_relay_service_resp.result().message)
+    '''
+    Function Name: docke_request
+    Input : docker object, linear_dock: Boolean, orienatation: Boolean, distance: float, orientation: float
+    Output : none
+    Logic : sends a service call to initialise docking, sending whether to dock linearly or radially or both, specifying angle and distance respectively 
+    Example call : docker.dock_request(True, True, 0.1, 3.14)
 
+    '''  
     
     def dock_request(self,linear_dock:bool,orientation_dock:bool,distance: float,orientation: float):
         self.docker = self.create_client(DockSw,'/dock_control')
@@ -99,6 +143,15 @@ class Docker(Node):
         req.orientation = orientation
         self.future3 = self.docker.call_async(req)
         rclpy.spin_until_future_complete(self,self.future3)
+    '''
+    Function Name: navigate
+    Input : docker object, goalPose: PoseStamped
+    Output : none
+    Logic : execute path planning and execution with the help of commander API
+    Example call : docker.navigate(goalPose)
+
+    '''  
+
 
     def navigate(self,goalPose:PoseStamped):
         self.navigator.goToPose(goalPose)
@@ -130,49 +183,61 @@ def main():
     docker = Docker()
     docker.switch_eletromagent(True)
 
-    pose = [1.05, 2.02, 0.0]
-    # pose = [6.3,-0.05, 3.14]
-    goalPose1 = PoseStamped()
-    goalPose1.header.frame_id = 'map'
-    goalPose1.header.stamp = docker.navigator.get_clock().now().to_msg()
-    goalPose1.pose.position.x = pose[0]
-    goalPose1.pose.position.y = pose[1]
-    q_1 = quaternion_from_euler(0,0,pose[2])
-    goalPose1.pose.orientation.x = q_1[0]
-    goalPose1.pose.orientation.y = q_1[1]
-    goalPose1.pose.orientation.z = q_1[2]
-    goalPose1.pose.orientation.w = q_1[3]
-    
-    docker.navigate(goalPose=goalPose1)
-    docker.dock_request(True,True,9.0,0.0)
-    sleep(3.0)
+    pose_dict = load_yaml("")
+    positions = pose_dict['position']
+    package_id = pose_dict['package_id']
+
+    for i in package_id:
+        required_rack = "rack"+ str(i)
+        for rack in positions:
+            if required_rack in rack:
+                required_pose = rack[required_rack]
+                # yaw = required_pose[2]
+        
+        pose = [1.05, 2.02, 0.0]
+        # pose = required_pose
+        # pose = [6.3,-0.05, 3.14]
+        goalPose1 = PoseStamped()
+        goalPose1.header.frame_id = 'map'
+        goalPose1.header.stamp = docker.navigator.get_clock().now().to_msg()
+        goalPose1.pose.position.x = pose[0]
+        goalPose1.pose.position.y = pose[1]
+        q_1 = quaternion_from_euler(0,0,pose[2])
+        goalPose1.pose.orientation.x = q_1[0]
+        goalPose1.pose.orientation.y = q_1[1]
+        goalPose1.pose.orientation.z = q_1[2]
+        goalPose1.pose.orientation.w = q_1[3]
+        
+        docker.navigate(goalPose=goalPose1)
+        docker.dock_request(True,True,9.0,0.0)
+        sleep(3.0)
 
 
-    # pose2 = [5.50, -0.05, 3.14]
-    pose2 = [6.30,-0.05,3.14]
+        # pose2 = [5.50, -0.05, 3.14]
+        pose2 = [6.30,-0.05,3.14]
 
-    goalPose2 = PoseStamped()
-    goalPose2.header.frame_id = 'map'
-    goalPose2.header.stamp = docker.navigator.get_clock().now().to_msg()
-    goalPose2.pose.position.x = pose2[0]
-    goalPose2.pose.position.y = pose2[1]
-    q_1 = quaternion_from_euler(0,0,pose2[2])
-    goalPose2.pose.orientation.x = q_1[0]
-    goalPose2.pose.orientation.y = q_1[1]
-    goalPose2.pose.orientation.z = q_1[2]
-    goalPose2.pose.orientation.w = q_1[3]
+        goalPose2 = PoseStamped()
+        goalPose2.header.frame_id = 'map'
+        goalPose2.header.stamp = docker.navigator.get_clock().now().to_msg()
+        goalPose2.pose.position.x = pose2[0]
+        goalPose2.pose.position.y = pose2[1]
+        q_1 = quaternion_from_euler(0,0,pose2[2])
+        goalPose2.pose.orientation.x = q_1[0]
+        goalPose2.pose.orientation.y = q_1[1]
+        goalPose2.pose.orientation.z = q_1[2]
+        goalPose2.pose.orientation.w = q_1[3]
 
-    docker.navigate(goalPose2)
+        docker.navigate(goalPose2)
 
-    sleep(3.0)
+        sleep(3.0)
 
-    docker.dock_request(False,True,0.0,3.14)
+        docker.dock_request(False,True,0.0,3.14)
 
-    docker.switch_eletromagent(False)
-    docker.dock_request(True,True,50.0,3.14)
+        docker.switch_eletromagent(False)
+        docker.dock_request(True,True,50.0,3.14)
 
 
-    sleep(2.0)
+        sleep(2.0)
     docker.navigate(docker.initial_pose)
 
     docker.dock_request(False,True,0.1,0.0)
